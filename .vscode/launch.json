@@ -1,0 +1,18 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Bookwyrm: Run browser demo",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "bookwyrm_adaptive.demo",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "windows": {
+        "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe"
+      },
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    }
+  ]
+}

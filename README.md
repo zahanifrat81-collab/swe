@@ -8,6 +8,19 @@ reader, authentication, grading engine, or gradebook.
 
 ## Open the interactive browser demo
 
+### Run from VS Code
+
+Open the repository's **`swe` folder** in VS Code (the folder containing
+`pyproject.toml`). Install Microsoft's **Python** and **Python Debugger**
+extensions when prompted. Complete the virtual-environment installation below
+once, then use **Run → Start Debugging** and select
+**Bookwyrm: Run browser demo**. The saved `.vscode/launch.json` launches the module
+using this checkout's `.venv` interpreter. You can also set breakpoints in the
+Python files to follow the request flow. Stop an already-running demo with
+**Control + C** in its terminal before launching another server on port 8000.
+
+### Run from the terminal
+
 From your existing `swe` checkout on macOS/Linux:
 
 ```sh
