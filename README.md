@@ -1,101 +1,186 @@
-# Bookwyrm: misconception probes and adaptive learning transfer
+# Bookwyrm adaptive conversation contribution
 
-This is Ifrat's conversation extension, not a replacement for the full application.
-It follows Introduction.pdf US-22/23/24 and the second PDF's proposed extensions:
-ask a targeted question about a **possible** misconception before correcting it,
-then test the same concept in a teacher-approved new situation. The second PDF
-describes these as proposed ideas, not previously implemented features.
+Misconception-focused follow-ups and learning-transfer checks for Bookwyrm's
+FastAPI conversation engine, with a Next.js client helper. This implements Ifrat's
+proposed extensions in **CEN 5011 (4).pdf**, following the main flow and US-22/23/24
+in **Introduction.pdf**. It does not implement the other team members' portals,
+reader, authentication, grading engine, or gradebook.
 
-## Main-project flow
+## Where it connects
 
-Teacher assignment + versioned Bloom outcome + approved question catalogs
-→ reader/checkpoints → Ready → Start/server timer → existing opening question
-→ student answer → main auth/session/guardrail service → assigned-text retrieval
-→ **this module's analysis and follow-up decision** → persist transcript/question
-→ existing Next.js conversation view → repeat → existing outcome evaluator
+Teacher assignment + versioned learning outcomes + approved question catalogs
+→ reader/checkpoints → Ready → Start/server timer → opening question
+→ student answer → **authenticated conversation host → main retrieval/guardrails
+→ misconception analysis → adaptive follow-up or transfer question**
+→ saved transcript → next answer → existing outcome evaluator
 → teacher approval → feedback/gradebook.
 
-Only the bold stage and its integration client are implemented here. The repository
-was empty, so actual main-project imports, schema, authentication and retrieval
-implementations were not available. `ConversationHost` is the explicit connection
-contract, not a claim that a nonexistent main application has been integrated.
+The main project's source was not present in the original repository. The code
+therefore provides an explicit integration API and a concrete transactional host;
+production authentication, database mappings, retrieval and grading must be
+supplied by the team's main application. It does not claim an untested connection
+to that application.
 
-## Install and test
+## Run and verify
 
 ```sh
 cd /workspace/swe
 python -m venv .venv
 .venv/bin/python -m pip install -e .
 .venv/bin/python -m unittest discover -s tests -v
+.venv/bin/python -m examples.run_conversation
 ```
 
-Tests cover branching, transfer, unsupported model evidence, bounded misconception
-probes, provider failures, server deadlines, outcome coverage, API authentication,
-student response privacy and the host integration contract. Provider tests use an
-HTTP transport fixture; they do not establish model accuracy or real API access.
+The example wires the real engine through the real host. Its analyzer and store
+are explicitly scripted, in-memory fixtures; it demonstrates misconception → probe
+→ corrected reasoning → new-situation transfer → evaluation handoff, without
+pretending that a fixture is a live AI model or production database.
 
-## Connect to the main FastAPI app
+With Node 22.18+ (CI uses Node 24):
+
+```sh
+node --test frontend/adaptive-client.test.mjs
+npx --yes --package typescript@5.9.3 tsc --noEmit --strict --target ES2022 --module esnext --lib ES2022,DOM frontend/adaptive-client.ts
+```
+
+`.github/workflows/ci.yml` runs backend tests on Python 3.11/3.12, the demonstration,
+client tests, and strict TypeScript checking. Provider tests use HTTP fixtures;
+they do not establish real API access, model accuracy, or production latency.
+
+## Main-project integration
+
+### 1. Wire the engine and host
 
 ```python
 from bookwyrm_adaptive.api import create_router
 from bookwyrm_adaptive.engine import AdaptiveEngine
+from bookwyrm_adaptive.host import TransactionalConversationHost
 from bookwyrm_adaptive.provider import OpenAIAnalyzer
 
-# Reuse the main application's lifespan-managed httpx.AsyncClient and configured
-# model credential. Do not put credentials in source control or browser code.
-analyzer = OpenAIAnalyzer(shared_http_client, settings.model_api_key, settings.model_name)
-engine = AdaptiveEngine(analyzer)
-app.include_router(create_router(engine, conversation_service, current_student))
+# These objects come from the main application, not from this extension:
+# app, shared_http_client, settings, main_conversation_store,
+# prepare_conversation_context, current_student.
+analyzer = OpenAIAnalyzer(
+    shared_http_client, settings.model_api_key, settings.model_name,
+)
+engine = AdaptiveEngine(analyzer, max_questions_per_outcome=5)
+host = TransactionalConversationHost(
+    main_conversation_store, prepare_context=prepare_conversation_context,
+)
+app.include_router(create_router(engine, host, current_student))
 ```
 
-The three host objects above belong to your team's application. Implement
-`ConversationHost.advance` in that application's conversation service following
-the method's transaction contract. It loads trusted `Context`, invokes the supplied
-`decide` callback, stores the private `Decision`, and returns only `StudentReply`.
-Pin outcome/catalog versions at session start. Keep authenticated ownership,
-CSRF protection, idempotency, deadlines, accommodations, attempt limits, opt-out,
-retrieval filtering and PostgreSQL transactions in that service. Never expose a
-route accepting `Context` directly from a student. Validate teacher catalogs when
-publishing assignments; probe and clarification questions must be open-ended,
-grounded, appropriate to the tagged Bloom level, and contain no answer hints.
+Reuse the main application's lifespan-managed `httpx.AsyncClient`, secure model
+configuration and authentication dependency. The model must support structured
+JSON output. `temperature` is omitted by default for compatibility with reasoning
+models; set it only for a model that accepts it. A different provider can implement
+`Analyzer.analyze(context, outcome)` and raise `AnalysisUnavailable` for expected
+provider failures.
 
-Use `frontend/adaptive-client.ts` from the existing Next.js conversation component;
-configure its existing same-origin backend proxy for `/api/conversations/*`.
-Keep the turn ID unchanged when retrying the same answer. On 409 reload the saved
-conversation; do not silently overwrite a newer turn. Render question text as plain
-React text, announce new questions accessibly, and preserve the existing timer.
-On `complete`, switch to the existing review-submitted view; do not publish grades.
+### 2. Map the database transaction
 
-## Behavior and boundaries
+Implement the small `ConversationStore` / `ConversationTransaction` interfaces in
+[host.py](bookwyrm_adaptive/host.py) using your team's PostgreSQL tables:
 
-- Model analysis uses the latest answer, teacher outcome, recent same-outcome turns
-  and assignment-scoped passages. It classifies supported/incomplete/possible
-  misconception/uncertain reasoning; keyword matching is not used as diagnosis.
-- Model output must reference actual passage IDs, an approved misconception ID,
-  and an exact quote from the student's answer. Invalid output or low confidence
-  requests teacher review and uses a teacher-authored clarification question.
-- A never-probed outcome takes priority over extra diagnostic turns. The main
-  engine remains responsible for evidence sufficiency and higher-order coverage.
-- A possible misconception gets at most one targeted probe per outcome/catalog ID
-  in this session. A repeated hypothesis requests teacher review.
-- Supported reasoning can trigger one new-situation task per outcome. Scenarios
-  are teacher-approved and tied to the same cognitive level rather than generated
-  with an uncontrolled increase in difficulty.
-- Both modes use questions without corrective hints. Summative mode never exposes
-  analysis, labels, confidence, passage text, or teacher review details to students.
-- No grades or mastery levels are calculated. Forward private evidence to the
-  existing evaluator; teacher approval remains necessary for summative grades.
-- Teacher-review flags and private evidence belong in the main database under its
-  education-record retention/access rules. Do not log raw model responses or keys.
+- `transaction(session_id)` must acquire a session row lock across all workers,
+  with bounded lock/statement timeouts, then commit durably on successful exit or
+  roll back on errors/cancellation. An in-process lock is insufficient in production.
+- `load_for_principal(principal)` returns a pinned `SessionSnapshot` only after
+  checking ownership and current class enrollment. Load completed sessions too,
+  so an authorized retry can retrieve its committed receipt. Include the actual
+  server-issued pending question ID and its private `Decision` metadata.
+- `find_submission(turn_id)` reads the existing session's receipt, if present.
+- `commit(record)` atomically saves the original answer, private decision,
+  next pending question/ID, incremented revision and exact submission/reply receipt.
+  Check `expected_revision` and uniquely constrain `(session_id, turn_id)`.
+  On completion, close the conversation and insert one idempotent evaluation
+  outbox entry in the same transaction. Do not publish a grade.
 
-`OpenAIAnalyzer` calls the structured-output Chat Completions API using an explicitly
-configured model that supports JSON schema. You can instead reuse the AI lead's
-existing model by implementing the `Analyzer` protocol. Its errors must raise
-`AnalysisUnavailable`. Configure egress and the model credential in the main
-deployment's secure settings. No live credential was supplied or requested here.
+The host implements the lifecycle: authorization before replay, exact duplicate
+matching, session eligibility, pending-ID and revision checks, deadline checks
+before and after preparation/model work, bounded execution and next-ID issuance.
+The database adapter supplies real persistence and cross-worker serialization.
+Tests verify this behavior with a transactional fixture, not a deployed PostgreSQL
+instance. Keep lock contention and model latency in the main load test.
 
-Prompt instructions and schema validation do not prove semantic accuracy or defeat
-all prompt injection. The main project's guardrails remain required. Real-model
-misconception accuracy, bias, red-team checks and the US-22 30-student/5-second
-latency target need validation with your team's deployed service and human-rated
-examples; the included fixture-based tests do not establish those results.
+### 3. Prepare the latest answer's trusted context
+
+`prepare_context(context)` is an async hook into the main AI pipeline. It receives
+the latest answer and runs assignment-scoped retrieval, the existing guardrails,
+privacy/redaction policy, and main coverage evaluation before this extension's
+analyzer runs. Return a validated `Context` with any updated passage selection and
+`sufficient_outcome_ids`. Preserve session/assignment/mode, the pinned outcomes,
+and issued question/turn identities. Keep redaction provenance if the main model
+uses sanitized transcript quotes. The original answer remains in the private
+transaction record. The hook runs under the host's decision deadline.
+
+Without the hook, the host uses its supplied trusted snapshot directly. That is
+useful for tests and for applications which already prepare context upstream; it
+does not silently implement the main project's retrieval, privacy or guardrails.
+
+### 4. Connect the existing conversation view
+
+Use `frontend/adaptive-client.ts` after the existing Start action. Configure the
+main Next.js app's same-origin backend proxy and CSRF validation for the route.
+
+```ts
+const reply = await submitAdaptiveAnswer(
+  sessionId, pendingTurnId, answer, revision, csrfToken,
+);
+// Replace revision and pendingTurnId with reply.revision and reply.turn_id.
+// Render reply.question.text as plain React text, never HTML or Markdown.
+// On "complete", use the main app's submitted-review view, not a grade screen.
+```
+
+The API is `POST /api/conversations/{session_id}/adaptive-answer`. Students send
+only `{turn_id, answer, expected_revision}`. They cannot set the outcome, mode,
+time, catalogs, passages, or coverage. The response contains only
+`{revision, turn_id, question}`. A complete response has a null pending ID and
+null question text/outcome ID. Question `kind` is UI routing metadata, not a
+confirmed diagnostic label; the misconception ID, analysis, confidence, private
+reason, and teacher-review flag are not returned.
+
+Retry the **same** turn ID/body/revision after a network failure or HTTP 503. A
+committed duplicate returns its original receipt without another model call. On
+409 reload the saved conversation; do not overwrite a newer answer. Preserve
+unsent text on all errors. Keep the existing server timer, extended-time
+accommodations, accessibility controls and transcript UI.
+
+## Adaptive behavior
+
+- The analyzer distinguishes supported reasoning, incomplete reasoning, a
+  possible catalog misconception, and uncertainty. It does not grade grammar,
+  dialect, spelling or typing speed. It never awards a grade.
+- The engine rejects invented quotes, unrelated passage IDs and nonexistent
+  misconception IDs. Low confidence, model failures and unresolved repeated
+  hypotheses request teacher review. A possible misconception is not confirmed
+  as fact or immediately corrected.
+- One immediate targeted probe or transfer question is allowed before switching
+  to an unprobed outcome. After that extension, unprobed outcomes take priority.
+  Evidence retains the analyzed turn/outcome IDs even when the next question
+  targets a different outcome.
+- Every follow-up includes an exact excerpt from the previous answer, including
+  fallback and coverage-switch questions. Questions use teacher-approved,
+  passage-grounded catalogs. Optional `follow_up_questions` allow varied prompts.
+- Transfer requires a teacher-authored new situation at Apply, Analyze, Evaluate
+  or Create, with one task per outcome/session. Recall-only outcomes are not
+  silently made more difficult. Transfer responses return through the same loop.
+- Generated questions retain the teacher-assigned cognitive level. Analyze+
+  outcomes need at least one higher-order question; a main-engine sufficiency
+  flag alone cannot replace it. The teacher must verify that catalog wording
+  actually matches its assigned level; this is not semantically proved by metadata.
+- Insufficient outcomes receive questions in order of least evidence collected.
+  A finite per-outcome budget prevents indefinite clarification loops. Exhausted
+  evidence or higher-order requirements close with teacher review, not mastery.
+  No outcome is left unprobed unless the server deadline ends the session.
+- Both modes ask open-ended questions without corrective hints. Keep formative
+  hints/practice policy in the main service; summative answer-giving is forbidden.
+
+## Limits of the validation
+
+The runnable example and automated tests exercise the extension and integration
+contracts. They do not prove production authentication, a real database mapping,
+model accuracy, fairness, or resistance to all prompt injection. Run the main
+project's human-rated misconception/transfer examples, bias and red-team suites,
+and US-22's 30-student/5-second latency check with the actual deployed model and
+application. No live model call or production database test has been claimed here.

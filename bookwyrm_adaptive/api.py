@@ -1,7 +1,7 @@
 from typing import Annotated, Awaitable, Callable, Protocol
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from .engine import AdaptiveEngine
 from .models import Context, Decision, Identifier, Model, StudentQuestion, Text
@@ -10,12 +10,19 @@ from .models import Context, Decision, Identifier, Model, StudentQuestion, Text
 class SubmitAnswer(Model):
     turn_id: Identifier
     answer: Text
-    expected_revision: Annotated[int, Field(ge=0)]
+    expected_revision: Annotated[int, Field(ge=0, strict=True)]
 
 
 class StudentReply(Model):
-    revision: int
+    revision: Annotated[int, Field(ge=0)]
     question: StudentQuestion
+    turn_id: Identifier | None = None
+
+    @model_validator(mode="after")
+    def pending_turn(self):
+        if (self.question.kind == "complete") != (self.turn_id is None):
+            raise ValueError("Only active questions require a pending turn ID")
+        return self
 
 
 class SessionConflict(Exception):
@@ -60,6 +67,10 @@ def create_router(
     current_principal: Callable,
 ) -> APIRouter:
     """Mount in the existing FastAPI app using its auth dependency and service."""
+    # Deferred because host imports API data types; create_router runs after
+    # module initialization when the main app wires its dependencies.
+    from .host import SessionProcessingUnavailable
+
     router = APIRouter(prefix="/api/conversations", tags=["adaptive-follow-ups"])
 
     @router.post("/{session_id}/adaptive-answer", response_model=StudentReply)
@@ -73,5 +84,7 @@ def create_router(
             raise HTTPException(404, "Conversation not available") from None
         except SessionConflict:
             raise HTTPException(409, "Conversation changed; reload before retrying") from None
+        except SessionProcessingUnavailable:
+            raise HTTPException(503, "Conversation temporarily unavailable; retry the same answer") from None
 
     return router

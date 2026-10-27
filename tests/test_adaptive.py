@@ -28,7 +28,8 @@ def context(**overrides):
         )],
         passages=[dict(id="p1", text="The mayor praised his generous shelter while closing its doors to the hungry.")],
         turns=[dict(id="turn-1", outcome_id="satire", question_kind="coverage",
-                    question="How is the mayor portrayed?", answer="The narrator approves of the mayor.")],
+                    question="How is the mayor portrayed?", answer="The narrator approves of the mayor.",
+                    question_level="analyze")],
     )
     data.update(overrides)
     return Context.model_validate(data)
@@ -104,13 +105,16 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(result.student.text)
         self.assertEqual(provider.calls, 0)
 
-    async def test_never_probed_outcome_takes_priority(self):
+    async def test_unprobed_outcome_is_next_after_nondiagnostic_answer(self):
         ctx = context()
         other = ctx.outcomes[0].model_copy(update={"id": "second"})
         ctx = context(outcomes=[ctx.outcomes[0].model_dump(), other.model_dump()])
-        result = await self.decide(ctx=ctx)
+        result = await self.decide(analysis("incomplete"), ctx=ctx)
         self.assertEqual(result.student.kind, "coverage")
         self.assertEqual(result.student.outcome_id, "second")
+        self.assertIn("approves of the mayor", result.student.text)
+        self.assertEqual(result.analysis_outcome_id, "satire")
+        self.assertEqual(result.analysis_turn_id, "turn-1")
 
     async def test_repeated_probe_requests_teacher_review(self):
         ctx = context()
@@ -170,7 +174,7 @@ class TestHost:
         ctx = context()
         turn = ctx.turns[0].model_copy(update={"id": submission.turn_id, "answer": submission.answer})
         self.private_decision = await decide(context(turns=[turn.model_dump()]))
-        return StudentReply(revision=1, question=self.private_decision.student)
+        return StudentReply(revision=1, question=self.private_decision.student, turn_id="next-server-turn")
 
 
 class ApiTests(unittest.TestCase):
@@ -193,7 +197,7 @@ class ApiTests(unittest.TestCase):
         response = self.post()
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["question"]["kind"], "misconception_probe")
-        self.assertEqual(set(response.json()), {"revision", "question"})
+        self.assertEqual(set(response.json()), {"revision", "question", "turn_id"})
         self.assertNotIn("confidence", response.text)
         self.assertIsNotNone(self.host.private_decision.analysis)
 

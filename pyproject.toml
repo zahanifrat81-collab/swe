@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bookwyrm-adaptive"
-version = "0.1.0"
+version = "0.2.0"
 description = "Bookwyrm misconception probes and learning-transfer follow-ups"
 requires-python = ">=3.11"
 dependencies = ["fastapi>=0.115,<1", "pydantic>=2.10,<3", "httpx>=0.28,<1"]

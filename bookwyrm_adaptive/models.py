@@ -3,6 +3,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Text = Annotated[str, Field(min_length=1, max_length=12000, pattern=r"\S")]
+QuestionText = Annotated[str, Field(min_length=1, max_length=25000, pattern=r"\S")]
 Identifier = Annotated[str, Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_.:-]+$")]
 Level = Literal["remember", "understand", "apply", "analyze", "evaluate", "create"]
 Kind = Literal["clarify", "misconception_probe", "transfer", "coverage", "complete"]
@@ -38,6 +39,7 @@ class Outcome(Model):
     level: Level
     passage_ids: Annotated[list[Identifier], Field(min_length=1, max_length=30)]
     clarification_question: Text
+    follow_up_questions: Annotated[list[Text], Field(max_length=10)] = []
     misconceptions: Annotated[list[Misconception], Field(max_length=20)] = []
     transfer_tasks: Annotated[list[TransferTask], Field(max_length=20)] = []
 
@@ -53,10 +55,22 @@ class Turn(Model):
     id: Identifier
     outcome_id: Identifier
     question_kind: Kind
-    question: Text
+    question: QuestionText
     answer: Text
     misconception_id: Identifier | None = None
     transfer_id: Identifier | None = None
+    # Set by the question author, not inferred from student vocabulary.
+    question_level: Level | None = None
+
+    @model_validator(mode="after")
+    def question_metadata(self):
+        if self.question_kind == "complete":
+            raise ValueError("A completion marker is not an answered question")
+        if (self.question_kind == "misconception_probe") != (self.misconception_id is not None):
+            raise ValueError("Only misconception probes require misconception_id")
+        if (self.question_kind == "transfer") != (self.transfer_id is not None):
+            raise ValueError("Only transfer questions require transfer_id")
+        return self
 
 
 class Context(Model):
@@ -108,7 +122,16 @@ class Analysis(Model):
 class StudentQuestion(Model):
     kind: Kind
     outcome_id: Identifier | None = None
-    text: str | None = None
+    text: QuestionText | None = None
+
+    @model_validator(mode="after")
+    def question_or_completion(self):
+        if self.kind == "complete":
+            if self.outcome_id is not None or self.text is not None:
+                raise ValueError("Completion cannot carry a question")
+        elif self.outcome_id is None or not self.text or not self.text.strip():
+            raise ValueError("A follow-up requires an outcome and question text")
+        return self
 
 
 class Decision(Model):
@@ -120,3 +143,19 @@ class Decision(Model):
     misconception_id: Identifier | None = None
     transfer_id: Identifier | None = None
     grounding_passage_ids: list[Identifier] = []
+    analysis_turn_id: Identifier | None = None
+    analysis_outcome_id: Identifier | None = None
+    question_level: Level | None = None
+
+    @model_validator(mode="after")
+    def consistent_metadata(self):
+        kind = self.student.kind
+        if (kind == "misconception_probe") != (self.misconception_id is not None):
+            raise ValueError("Only misconception probes require misconception_id")
+        if (kind == "transfer") != (self.transfer_id is not None):
+            raise ValueError("Only transfer questions require transfer_id")
+        if kind == "complete" and self.question_level is not None:
+            raise ValueError("Completion cannot carry question level metadata")
+        if self.analysis is not None and (self.analysis_turn_id is None or self.analysis_outcome_id is None):
+            raise ValueError("Private analysis must identify its source turn and outcome")
+        return self
