@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#173b3b" />
+    <meta
+      name="description"
+      content="Try Bookwyrm's misconception-focused reading conversation and learning-transfer demo."
+    />
+    <title>Bookwyrm · Reading conversation</title>
+    <link rel="stylesheet" href="/assets/style.css" />
+    <script src="/assets/app.js" type="module"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#conversation-title">Skip to conversation</a>
+    <div class="page-shell">
+      <header class="site-header">
+        <a href="/" class="brand" aria-label="Bookwyrm home">
+          <span class="brand-symbol" aria-hidden="true">
+            <svg viewBox="0 0 32 32" fill="none">
+              <path
+                d="M5 7.5c4.6-.8 7.7 0 11 2.2 3.3-2.2 6.4-3 11-2.2v18c-4.6-.8-7.7 0-11 2.2-3.3-2.2-6.4-3-11-2.2v-18Z"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M16 10v17M9 12.5c1.8.1 3 .5 4 1.1M19 13.6c1-.6 2.2-1 4-1.1M9 17c1.8.1 3 .5 4 1.1"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+              />
+            </svg>
+          </span>
+          <span>Bookwyrm<span class="brand-period">.</span></span>
+        </a>
+        <span class="header-label">A conversation with your reading</span>
+        <span class="demo-pill"
+          ><span class="status-dot" aria-hidden="true"></span>Interactive
+          demo</span
+        >
+      </header>
+
+      <main>
+        <section class="intro" aria-labelledby="page-title">
+          <div>
+            <p class="eyebrow">READ. REASON. MAKE CONNECTIONS.</p>
+            <h1 id="page-title">Show the thinking<br />behind your answer.</h1>
+            <p class="intro-copy">
+              A short conversation about a text. A chance to explain your
+              ideas,<br class="desktop-break" />
+              question an interpretation, and try a new situation.
+            </p>
+          </div>
+          <ol class="steps" aria-label="Conversation progress">
+            <li id="step-read" class="step current" aria-current="step">
+              <span class="step-number">1</span><span>Read</span>
+            </li>
+            <li id="step-review" class="step">
+              <span class="step-number">2</span><span>Review</span>
+            </li>
+            <li id="step-complete" class="step">
+              <span class="step-number">3</span><span>Complete</span>
+            </li>
+          </ol>
+        </section>
+
+        <aside id="mode-notice" class="mode-notice" aria-label="Demo mode">
+          <span class="notice-icon" aria-hidden="true">i</span>
+          <div>
+            <strong id="mode-title">Loading demo…</strong>
+            <p id="mode-description">Preparing your reading conversation.</p>
+          </div>
+        </aside>
+
+        <div class="workspace">
+          <aside class="reading-card" aria-labelledby="reading-title">
+            <div class="card-kicker">
+              <span class="small-line" aria-hidden="true"></span>THE READING
+            </div>
+            <div class="reading-meta">
+              <span class="genre-tag">Short passage</span
+              ><span>Literary analysis</span>
+            </div>
+            <h2 id="reading-title">A closer look</h2>
+            <p class="reading-intro">
+              Read this passage, then think about what the narrator is really
+              saying.
+            </p>
+            <blockquote>
+              <span class="opening-quote" aria-hidden="true">“</span>
+              <p id="passage-text">Loading passage…</p>
+            </blockquote>
+            <div class="outcome-box">
+              <p class="label">
+                YOUR FOCUS
+                <span id="outcome-level" class="level-tag">Analyze</span>
+              </p>
+              <p id="outcome-label">
+                Explore how an author's words shape meaning.
+              </p>
+            </div>
+            <div class="reading-tip">
+              <span aria-hidden="true">↳</span>
+              <p>
+                Look for a contrast between what someone says and what they do.
+                What might that contrast mean?
+              </p>
+            </div>
+            <p class="reading-footnote">
+              Keep the passage in view as you explain your thinking.
+            </p>
+          </aside>
+
+          <section
+            class="conversation-card"
+            aria-labelledby="conversation-title"
+          >
+            <header class="conversation-header">
+              <div>
+                <p class="card-kicker">YOUR READING REVIEW</p>
+                <h2 id="conversation-title" tabindex="-1">
+                  Let’s talk it through.
+                </h2>
+              </div>
+              <button
+                id="reset-button"
+                class="text-button"
+                type="button"
+                disabled
+              >
+                <span aria-hidden="true">↻</span> Start over
+              </button>
+            </header>
+
+            <div id="error-box" class="error-box" role="alert" hidden></div>
+            <p
+              id="activity"
+              class="activity"
+              role="status"
+              aria-live="polite"
+            ></p>
+
+            <div id="welcome" class="welcome-panel">
+              <div class="welcome-art" aria-hidden="true">
+                <span>“</span><span class="art-line line-one"></span
+                ><span class="art-line line-two"></span
+                ><span class="art-line line-three"></span
+                ><span class="art-spark">✳</span>
+              </div>
+              <h3>A question. Your perspective.</h3>
+              <p>
+                Read the passage on the left, then start the conversation.
+                There’s room to pause, rethink, and explain.
+              </p>
+              <label class="ready-label"
+                ><input id="ready-checkbox" type="checkbox" disabled /><span
+                  >I’ve read the passage and I’m ready.</span
+                ></label
+              >
+              <button
+                id="start-button"
+                type="button"
+                class="primary-button"
+                disabled
+              >
+                Start conversation <span aria-hidden="true">→</span>
+              </button>
+              <p class="welcome-note">This demo does not issue grades.</p>
+            </div>
+
+            <div
+              id="transcript"
+              class="transcript"
+              role="log"
+              aria-label="Reading conversation"
+              aria-live="polite"
+              aria-relevant="additions text"
+              hidden
+            ></div>
+
+            <section
+              id="completion"
+              class="completion"
+              tabindex="-1"
+              aria-labelledby="completion-title"
+              hidden
+            >
+              <span class="completion-icon" aria-hidden="true">✓</span>
+              <div>
+                <h3 id="completion-title">Conversation complete.</h3>
+                <p>
+                  You’ve reached the end of this review. Your responses are
+                  ready for the main project’s evaluation step; this demo does
+                  not calculate or publish a grade.
+                </p>
+              </div>
+            </section>
+
+            <form id="answer-form" class="answer-form" hidden>
+              <div id="examples-panel" class="examples-panel" hidden>
+                <p id="examples-label" class="examples-label">
+                  TRY AN EXAMPLE
+                  <span>Fills your answer; you choose when to send.</span>
+                </p>
+                <div
+                  id="examples"
+                  class="examples"
+                  aria-labelledby="examples-label"
+                ></div>
+              </div>
+              <label for="answer-input" class="answer-label"
+                >Your response</label
+              >
+              <textarea
+                id="answer-input"
+                name="answer"
+                rows="3"
+                maxlength="12000"
+                placeholder="Put your thinking into words…"
+                aria-describedby="answer-help"
+                required
+              ></textarea>
+              <div class="compose-footer">
+                <p id="answer-help">
+                  Your ideas matter more than perfect wording.<span
+                    class="keyboard-hint"
+                    >⌘ / Ctrl + Enter to send</span
+                  >
+                </p>
+                <button id="send-button" type="submit" class="primary-button">
+                  Send response <span aria-hidden="true">↗</span>
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+        <footer class="page-footer">
+          <p>Thoughtful questions. Stronger connections.</p>
+          <p id="storage-notice">
+            Demo sessions are kept in memory and clear when the server restarts.
+          </p>
+        </footer>
+      </main>
+    </div>
+  </body>
+</html>

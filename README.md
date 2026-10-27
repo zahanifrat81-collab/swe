@@ -6,6 +6,53 @@ proposed extensions in **CEN 5011 (4).pdf**, following the main flow and US-22/2
 in **Introduction.pdf**. It does not implement the other team members' portals,
 reader, authentication, grading engine, or gradebook.
 
+## Open the interactive browser demo
+
+From your existing `swe` checkout on macOS/Linux:
+
+```sh
+git pull --ff-only origin main
+.venv/bin/python -m pip install -e '.[demo]'
+.venv/bin/python -m bookwyrm_adaptive.demo
+```
+
+Open **http://127.0.0.1:8000** in your browser. Keep the terminal running; press
+**Control + C** to stop the server. If port 8000 is busy, add `--port 8001` and open
+the same address with port 8001.
+
+Read the passage, check **I've read the passage**, then click **Start conversation**.
+Use the example that says the narrator approves of the mayor, then send it to see
+the misconception probe. Next use the example explaining the ironic praise to
+reach a new-situation transfer question. Send the library example to finish. You
+can also type your own response and start over to explore different branches.
+
+**Default mode is scripted, not live AI.** Only the exact example answers trigger
+predetermined classifications; other text requests clarification. The page
+identifies this mode before you begin. It calls the same adaptive engine and
+transactional host as the integration module. The local harness provides one
+fixed passage, cookie-isolated sessions, memory-only storage and a demonstration
+coverage check. It does not assign grades, run real teacher evaluation, enforce
+the main reader's checkpoints, or provide production accounts. Sessions clear
+when the server restarts or expire after one hour of inactivity. Use one server
+process; do not deploy this local harness as the main application.
+
+The demo's small HTML/CSS/JavaScript interface needs no Node installation or
+separate frontend server. The Next.js integration helper remains available for
+your team's eventual main application.
+
+### Optional live model
+
+Configure `BOOKWYRM_DEMO_MODE=live`, `BOOKWYRM_MODEL_API_KEY`, and `BOOKWYRM_MODEL`
+in the **server process environment** before launching the same command. Select
+a model that supports structured JSON responses. Credentials stay server-side;
+never add keys to the browser, Git, or chat. This command does not automatically
+load a `.env` file. In live mode, your typed answers are sent to the configured AI
+provider and the page discloses that before Start. No example classifications are
+used. Model failure falls back to clarification. Demonstration coverage accepts
+a supported transfer only with sufficient confidence and validated quote/passage
+references; this is not a mastery rating or grade. Real accuracy and latency still
+require your team's validation.
+
 ## Where it connects
 
 Teacher assignment + versioned learning outcomes + approved question catalogs
@@ -43,8 +90,8 @@ node --test frontend/adaptive-client.test.mjs
 npx --yes --package typescript@5.9.3 tsc --noEmit --strict --target ES2022 --module esnext --lib ES2022,DOM frontend/adaptive-client.ts
 ```
 
-`.github/workflows/ci.yml` runs backend tests on Python 3.11/3.12, the demonstration,
-client tests, and strict TypeScript checking. Provider tests use HTTP fixtures;
+`.github/workflows/ci.yml` runs backend/browser-API tests on Python 3.11/3.12, the
+terminal demonstration, client tests, and strict TypeScript checking. Provider tests use HTTP fixtures;
 they do not establish real API access, model accuracy, or production latency.
 
 ## Main-project integration
